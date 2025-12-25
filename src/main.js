@@ -568,6 +568,41 @@ function buildOverlayMain() {
                 }
             };
         }).buildElement()
+        // Color Chooser for Auto-Fill
+.addDiv({ 'id': 'bm-contain-autofill-colors', 'style': 'margin-top: 0.5em;' })
+  .addP({ 'textContent': 'Auto-Fill Colors:', 'style': 'margin: 0 0 0.5em 0; font-weight: bold;' }).buildElement()
+  .addDiv({ 'id': 'bm-autofill-color-palette', 'style': 'display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 4px; max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px;' })
+    // Colors will be dynamically populated here
+  .buildElement()
+  .addDiv({ 'style': 'display: flex; gap: 6px; margin-top: 6px;' })
+    .addButton({ 'id': 'bm-autofill-colors-all', 'textContent': 'Select All', 'style': 'flex: 1;' }, (instance, button) => {
+      button.onclick = () => {
+        const checkboxes = document.querySelectorAll('#bm-autofill-color-palette input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = true);
+        instance.handleDisplayStatus('✅ All colors selected for auto-fill');
+      };
+    }).buildElement()
+    .addButton({ 'id': 'bm-autofill-colors-none', 'textContent': 'Deselect All', 'style': 'flex: 1;' }, (instance, button) => {
+      button.onclick = () => {
+        const checkboxes = document.querySelectorAll('#bm-autofill-color-palette input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+        instance.handleDisplayStatus('❌ All colors deselected for auto-fill');
+      };
+    }).buildElement()
+    .addButton({ 'id': 'bm-autofill-colors-owned', 'textContent': 'Owned Only', 'style': 'flex: 1;' }, (instance, button) => {
+      button.onclick = () => {
+        const bitmap = instance.apiManager?.extraColorsBitmap || 0;
+        const ownedColors = new Set(getOwnedColorsFromBitmap(bitmap));
+        const checkboxes = document.querySelectorAll('#bm-autofill-color-palette input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          const colorId = parseInt(cb.getAttribute('data-color-id'));
+          cb.checked = ownedColors.has(colorId);
+        });
+        instance.handleDisplayStatus(`🎨 Selected ${ownedColors.size} owned colors for auto-fill`);
+      };
+    }).buildElement()
+  .buildElement()
+.buildElement()
         .addInput({ 'type': 'number', 'id': 'bm-input-charge-limit', 'value': '10', 'min': '1', 'max': '10', 'step': '1', 'style': 'width: 50px; text-align: center; border: 1px solid #ccc; border-left: 0; border-right: 0; border-radius: 0; margin: 0; height: 24px;' }, (instance, input) => {
             // Initialize with user's current max charges or default to 10
             const userCharges = instance.apiManager?.charges;
