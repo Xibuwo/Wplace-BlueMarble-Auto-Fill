@@ -466,3 +466,26 @@ div:has(> #bm-input-file-template),
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Auto-Fill Color Palette Container */
+#bm-contain-autofill-colors {
+  margin-top: 0.5em;
+}
+
+#bm-autofill-color-palette {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.2);
+}
+
+#bm-autofill-color-palette::-webkit-scrollbar {
+  width: 6px;
+}
+
+#bm-autofill-color-palette::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+#bm-autofill-color-palette::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
