@@ -782,6 +782,108 @@ function buildOverlayMain() {
             }
         }).buildElement()
         .addButton({ 'id': 'bm-button-autofill', 'textContent': 'Auto Fill', 'disabled': true }, (instance, button) => {
+
+            // Helper function to populate the color palette UI
+window.populateAutofillColorPalette = function() {
+  const container = document.querySelector('#bm-autofill-color-palette');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  for (let colorId = 0; colorId < 64; colorId++) {
+    const colorRGB = colorMap[colorId];
+    if (!colorRGB) continue;
+
+    const colorDiv = document.createElement('div');
+    colorDiv.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 2px;';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = true; // Default: all colors enabled
+    checkbox.setAttribute('data-color-id', colorId);
+    checkbox.style.cssText = 'cursor: pointer;';
+
+    const colorSwatch = document.createElement('div');
+    colorSwatch.style.cssText = `
+      width: 24px;
+      height: 24px;
+      background: rgb(${colorRGB[0]}, ${colorRGB[1]}, ${colorRGB[2]});
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 4px;
+      cursor: pointer;
+    `;
+    colorSwatch.title = `Color ${colorId}`;
+    
+    // Click on swatch toggles checkbox
+    colorSwatch.onclick = () => {
+      checkbox.checked = !checkbox.checked;
+    };
+
+    const colorLabel = document.createElement('small');
+    colorLabel.textContent = colorId;
+    colorLabel.style.cssText = 'font-size: 9px; color: #aaa;';
+
+    colorDiv.appendChild(checkbox);
+    colorDiv.appendChild(colorSwatch);
+    colorDiv.appendChild(colorLabel);
+    container.appendChild(colorDiv);
+  }
+};
+
+// Helper function to get selected colors from the UI
+window.getSelectedAutofillColors = function() {
+  const checkboxes = document.querySelectorAll('#bm-autofill-color-palette input[type="checkbox"]:checked');
+  return Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-color-id')));
+};
+
+// Helper function to update the completion bar
+window.updateCompletionBar = function(placed, total) {
+  const percentage = total > 0 ? Math.round((placed / total) * 100) : 0;
+  
+  const barInner = document.querySelector('#bm-completion-bar-inner');
+  const barText = document.querySelector('#bm-completion-bar-text');
+  const label = document.querySelector('#bm-completion-label');
+  const stats = document.querySelector('#bm-completion-stats');
+
+  if (barInner) {
+    barInner.style.width = `${percentage}%`;
+    
+    // Change color based on completion
+    if (percentage >= 100) {
+      barInner.style.background = 'linear-gradient(90deg, #14b944, #10e561)'; // Green
+    } else if (percentage >= 75) {
+      barInner.style.background = 'linear-gradient(90deg, #b9a614, #e5d610)'; // Yellow
+    } else {
+      barInner.style.background = 'linear-gradient(90deg, #144eb9, #1061e5)'; // Blue
+    }
+  }
+
+  if (barText) {
+    barText.textContent = `${placed.toLocaleString()} / ${total.toLocaleString()} pixels`;
+  }
+
+  if (label) {
+    label.textContent = `Progress: ${percentage}%`;
+  }
+
+  if (stats) {
+    const remaining = Math.max(0, total - placed);
+    stats.textContent = `${remaining.toLocaleString()} remaining`;
+  }
+};
+
+            setTimeout(() => {
+  window.populateAutofillColorPalette();
+  
+  // Set "Owned Only" as default
+  const bitmap = overlayMain.apiManager?.extraColorsBitmap || 0;
+  const ownedColors = new Set(getOwnedColorsFromBitmap(bitmap));
+  const checkboxes = document.querySelectorAll('#bm-autofill-color-palette input[type="checkbox"]');
+  checkboxes.forEach(cb => {
+    const colorId = parseInt(cb.getAttribute('data-color-id'));
+    cb.checked = ownedColors.has(colorId);
+  });
+}, 1500);
             // ========== CLEAN AUTO-FILL ARCHITECTURE ==========
 
             class AutoFillManager {
@@ -1768,19 +1870,33 @@ function buildOverlayMain() {
                 }
             };
 
-            const getNextPixels = async (count, ownedColors = []) => {
-                const chunkGroups = {}; // Store pixels grouped by chunk
-                if (!instance.apiManager?.templateManager?.templatesArray?.length) return [];
+const getNextPixels = async (count, ownedColors = []) => {
+  // Get user-selected colors from the UI
+  const selectedColors = window.getSelectedAutofillColors();
+  
+  // Filter ownedColors to only include selected colors
+  const activeColors = ownedColors.filter(colorId => selectedColors.includes(colorId));
+  
+  if (activeColors.length === 0) {
+    console.log("AUTOFILL: No colors selected for placement");
+    updateAutoFillOutput("⚠️ No colors selected! Please select colors in the Auto-Fill Colors section.");
+    return { chunkGroups: [], totalRemainingPixels: 0, totalPixels: 0 };
+  }
 
-                const template = instance.apiManager.templateManager.templatesArray[0];
-                const chunkedBitmaps = template.chunked;
-                if (!chunkedBitmaps) {
-                    instance.handleDisplayError("Template has no pixel data (chunked property is missing).");
-                    return [];
-                }
+  console.log(`AUTOFILL: Using ${activeColors.length} selected colors out of ${ownedColors.length} owned colors`);
+  
+  // ... rest of the existing getNextPixels code, but use activeColors instead of ownedColors
+  const chunkGroups = {};
+  if (!instance.apiManager?.templateManager?.templatesArray?.length) return { chunkGroups: [], totalRemainingPixels: 0, totalPixels: 0 };
 
-                // Convert ownedColors array to Set for faster lookup
-                const ownedColorsSet = new Set(ownedColors);
+  const template = instance.apiManager.templateManager.templatesArray[0];
+  const chunkedBitmaps = template.chunked;
+  if (!chunkedBitmaps) {
+    instance.handleDisplayError("Template has no pixel data (chunked property is missing).");
+    return { chunkGroups: [], totalRemainingPixels: 0, totalPixels: 0 };
+  }
+
+  const ownedColorsSet = new Set(activeColors); // Use activeColors here
 
                 // OPTIMIZATION 10: Cache color distance calculations for RGB->ColorID conversion
                 const colorDistanceCache = new Map();
@@ -2266,6 +2382,17 @@ function buildOverlayMain() {
         .buildElement()
         .addTextarea({ 'id': overlayMain.outputStatusId, 'placeholder': `Status: Sleeping...\nVersion: ${version}`, 'readOnly': true }).buildElement()
         .addTextarea({ 'id': 'bm-autofill-output', 'placeholder': 'Auto-Fill Output:\nWaiting for auto-fill to start...', 'readOnly': true }).buildElement()
+        // Visual Completion Bar
+.addDiv({ 'id': 'bm-completion-bar-container', 'style': 'margin-top: 0.5em;' })
+  .addDiv({ 'style': 'display: flex; justify-content: space-between; margin-bottom: 4px;' })
+    .addSmall({ 'id': 'bm-completion-label', 'textContent': 'Progress: 0%', 'style': 'font-weight: bold;' }).buildElement()
+    .addSmall({ 'id': 'bm-completion-stats', 'textContent': '0 / 0', 'style': 'color: #aaa;' }).buildElement()
+  .buildElement()
+  .addDiv({ 'id': 'bm-completion-bar-outer', 'style': 'width: 100%; height: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; position: relative;' })
+    .addDiv({ 'id': 'bm-completion-bar-inner', 'style': 'width: 0%; height: 100%; background: linear-gradient(90deg, #144eb9, #1061e5); transition: width 0.3s ease; border-radius: 10px;' }).buildElement()
+    .addSmall({ 'id': 'bm-completion-bar-text', 'textContent': '0 / 0 pixels', 'style': 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold; text-shadow: 0 0 3px rgba(0,0,0,0.8);' }).buildElement()
+  .buildElement()
+.buildElement()
         .addTextarea({ 'id': 'bm-progress-display', 'placeholder': 'Progress:\nWaiting for template analysis...', 'readOnly': true }).buildElement()
         .addDiv({ 'id': 'bm-contain-buttons-action' })
         .addDiv()
